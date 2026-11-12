@@ -1,0 +1,5 @@
+@extends('layouts.app')
+@section('title', 'Validar certificado')
+@section('content')
+<section class="section verify-section"><div class="container"><div class="verify-card"><div class="verify-icon {{ $valid ? 'valid' : 'invalid' }}"><svg class="icon"><use href="{{ $valid ? '#i-check' : '#i-lock' }}"/></svg></div><h1>{{ $valid ? 'Certificado autentico' : 'Certificado nao encontrado' }}</h1>@if($valid)<p>Este codigo corresponde a um certificado de participacao emitido pela Rota Tech.</p><div class="verify-details"><div><span>Trilha</span><strong>{{ $certificate->enrollment->path->title }}</strong></div><div><span>Participante (iniciais preservadas)</span><strong>{{ $studentInitials }}</strong></div><div><span>Emissao</span><strong>{{ $certificate->issued_at->format('d/m/Y') }}</strong></div><div><span>Codigo</span><strong>{{ $certificate->verification_code }}</strong></div></div>@else<p>Confira se o codigo foi digitado corretamente. Nao encontramos registro correspondente.</p>@endif<a href="{{ route('home') }}" class="btn btn-dark">Voltar ao inicio</a></div></div></section>
+@endsection

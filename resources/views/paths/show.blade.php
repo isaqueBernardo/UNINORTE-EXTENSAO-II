@@ -1,0 +1,21 @@
+@extends('layouts.app')
+@section('title', $path->title)
+@section('body_class', 'path-map-page')
+@section('content')
+<section class="path-hero"><div class="container path-hero-inner"><div><a href="{{ route('dashboard') }}" class="back-link">← Voltar ao meu painel</a><div class="kicker">TRILHA DE APRENDIZAGEM · {{ strtoupper($path->career->name) }}</div><h1>{{ $path->title }}</h1><p>{{ $path->description }}</p><div class="meta-row meta-light"><span><svg class="icon"><use href="#i-flag"/></svg> {{ $path->stages->count() }} fases</span><span><svg class="icon"><use href="#i-clock"/></svg> {{ $path->estimated_minutes }} min</span><span><svg class="icon"><use href="#i-trophy"/></svg> Certificado ao final</span></div></div><div class="path-hero-orbit"><svg class="icon"><use href="#i-rocket"/></svg></div></div></section>
+<section class="section map-section"><div class="container"><div class="map-header"><div><span class="kicker">SEU MAPA DE MISSOES</span><h2>Cada passo e uma <span>conquista.</span></h2></div>@if($enrollment)<div class="map-percent"><strong>{{ $path->stages->count() ? round(count($completedStageIds)/$path->stages->count()*100) : 0 }}%</strong><span>da trilha</span></div>@endif</div>
+    @if(!$enrollment)<div class="start-panel"><span class="start-badge">✦</span><div><h3>Seu mapa esta pronto para ser explorado.</h3><p>Desbloqueie a primeira fase. As proximas serao abertas conforme voce concluir cada missao.</p></div><form action="{{ route('paths.enroll', $path) }}" method="POST">@csrf <button type="submit" class="btn btn-green btn-large">Desbloquear trilha <svg class="icon"><use href="#i-arrow"/></svg></button></form></div>@endif
+    <div class="trail-route">@foreach($path->stages as $stage)
+        @php($done = in_array($stage->id, $completedStageIds, true))
+        @php($unlocked = $enrollment && ($done || count($completedStageIds) >= $loop->index))
+        <div class="trail-stop {{ $done ? 'is-done' : ($unlocked ? 'is-current' : 'is-locked') }} {{ $loop->even ? 'right-stop' : 'left-stop' }} reveal">
+            <div class="trail-node"><span>{{ $done ? '✓' : str_pad((string)$stage->position, 2, '0', STR_PAD_LEFT) }}</span></div>
+            <div class="trail-description"><span class="trail-eyebrow">FASE {{ str_pad((string)$stage->position, 2, '0', STR_PAD_LEFT) }} · {{ $done ? 'CONCLUIDA' : ($unlocked ? 'DESBLOQUEADA' : 'BLOQUEADA') }}</span><h3>{{ $stage->title }}</h3><p>{{ $stage->description }}</p><div class="meta-row"><span>+{{ $stage->xp_reward }} XP</span><span><svg class="icon"><use href="#i-clock"/></svg> {{ $stage->estimated_minutes }} min</span></div>
+            @if($unlocked)<a class="btn {{ $done ? 'btn-outline-dark' : 'btn-green' }}" href="{{ route('paths.stage', [$path, $stage]) }}">{{ $done ? 'Revisitar fase' : 'Iniciar missao' }} <svg class="icon"><use href="#i-arrow"/></svg></a>@else<span class="locked-label"><svg class="icon"><use href="#i-lock"/></svg> Conclua a anterior</span>@endif</div>
+        </div>
+    @endforeach
+    <div class="trail-finish reveal"><div class="finish-medal"><svg class="icon"><use href="#i-trophy"/></svg></div><h3>O grande checkpoint!</h3><p>Conclua todas as fases para desbloquear seu certificado.</p>@if($enrollment?->certificate)<a class="btn btn-green" href="{{ route('certificates.show', $enrollment->certificate) }}">Ver meu certificado <svg class="icon"><use href="#i-arrow"/></svg></a>@else<span class="tag">Certificado bloqueado</span>@endif</div>
+    </div>
+    @if($enrollment?->completed_at)<div class="feedback-box"><h3>Como foi a trilha?</h3><p>Sua opiniao ajuda a escola a melhorar as proximas jornadas.</p><form action="{{ route('paths.feedback', $path) }}" method="POST">@csrf<label class="field">Avaliação <select name="rating" required><option value="5">★★★★★ · Excelente</option><option value="4">★★★★ · Muito boa</option><option value="3">★★★ · Boa</option><option value="2">★★ · Pode melhorar</option><option value="1">★ · Precisa de ajustes</option></select></label><label class="field">Comentario (opcional)<textarea name="comment" maxlength="400" rows="3" placeholder="O que mais ajudou voce?"></textarea></label><button class="btn btn-dark">Enviar avaliacao</button></form></div>@endif
+</div></section>
+@endsection
