@@ -1,0 +1,36 @@
+{
+  "name": "escola/rota-tech",
+  "type": "project",
+  "description": "Rota Tech: jogo vocacional, trilhas gamificadas e gestao escolar.",
+  "keywords": ["laravel", "educacao", "orientacao-vocacional", "gamificacao"],
+  "license": "MIT",
+  "require": {
+    "php": "^8.3",
+    "laravel/framework": "^13.0",
+    "laravel/tinker": "^3.0"
+  },
+  "require-dev": {
+    "fakerphp/faker": "^1.24",
+    "laravel/pint": "^1.0",
+    "laravel/sail": "^1.0",
+    "mockery/mockery": "^1.6",
+    "nunomaduro/collision": "^8.0",
+    "phpunit/phpunit": "^11.5|^12.0"
+  },
+  "autoload": {"psr-4": {"App\\": "app/", "Database\\Factories\\": "database/factories/", "Database\\Seeders\\": "database/seeders/"}},
+  "autoload-dev": {"psr-4": {"Tests\\": "tests/"}},
+  "scripts": {
+    "post-autoload-dump": ["Illuminate\\Foundation\\ComposerScripts::postAutoloadDump", "@php artisan package:discover --ansi"],
+    "post-create-project-cmd": ["@php artisan key:generate --ansi"],
+    "setup": ["@php -r \"file_exists('.env') || copy('.env.example', '.env');\"", "@php artisan key:generate", "@php artisan migrate --seed"],
+    "dev": ["@php artisan serve"],
+    "test": ["@php artisan test"]
+  },
+  "extra": {"laravel": {"dont-discover": []}},
+  "config": {"optimize-autoloader": true, "preferred-install": "dist", "sort-packages": true,
+    "platform": {
+      "php": "8.4.0"
+    }},
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
