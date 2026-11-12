@@ -15,7 +15,22 @@ class CareerGameService
     public function getOrStart(User $user): CareerAttempt
     {
         $attempt = $user->attempts()->where('status', 'in_progress')->latest('id')->first();
-        if ($attempt) return $attempt;
+        if ($attempt) {
+            // Uma tentativa pode ter sido criada antes de executar o seeder.
+            // Recuperar somente partidas ainda sem respostas para nao mudar uma jornada em andamento.
+            if (empty($attempt->question_ids) && ! $attempt->responses()->exists()) {
+                $ids = CareerQuestion::where('active', true)
+                    ->whereHas('answers')
+                    ->orderBy('position')
+                    ->pluck('id')
+                    ->all();
+                if ($ids !== []) {
+                    $attempt->question_ids = $ids;
+                    $attempt->save();
+                }
+            }
+            return $attempt;
+        }
         return $user->attempts()->create([
             'status' => 'in_progress', 'scores' => [],
             'question_ids' => CareerQuestion::where('active', true)->whereHas('answers')->orderBy('position')->pluck('id')->all(),

@@ -1,0 +1,18 @@
+/* ROTA TECH 2.1 — Controles de plataforma e musica no desktop + mobile.
+   Carregado somente na pagina do jogo; nao altera telas de login/trilhas. */
+.game-page .game-toolbar{flex-wrap:wrap;min-height:65px;gap:10px}
+.game-page .game-toolbar-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+.game-page #game-status{font-size:10px;color:#a8e9a8;font-weight:800;letter-spacing:.06em}
+.game-page .game-sound-toggle{background:#20436c;color:#e8ffeb;border:1px solid #66c95b;border-radius:10px;padding:9px 14px;min-height:42px;font-size:12px;font-weight:800;letter-spacing:normal;transition:background .2s,transform .2s}
+.game-page .game-sound-toggle:hover{background:#28603f;transform:translateY(-1px)}
+.game-page .game-sound-toggle[aria-pressed="true"]{background:#51ba42;color:#0c233a;border-color:#99f18b}
+.game-page .touch-controls{display:flex;align-items:stretch;justify-content:flex-start;gap:12px;margin:18px 0 10px;flex-wrap:wrap}
+.game-page .touch-controls button{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-width:153px;min-height:62px;padding:14px 22px;background:#fff;border:2px solid #9bb7d1;border-radius:16px;color:#162c51;font-weight:900;font-size:14px;box-shadow:0 5px 0 #b5cadd;transition:background .1s,transform .1s,box-shadow .1s;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.game-page .touch-controls button[data-control="jump"]{margin-left:auto;background:#daf3d7;border-color:#51ba42;box-shadow:0 5px 0 #9ad78d}
+.game-page .touch-controls button.is-pressed,.game-page .touch-controls button:active{background:#51ba42;color:#08213a;border-color:#338a31;transform:translateY(4px);box-shadow:0 1px 0 #338a31}
+.game-page .touch-controls button:focus-visible,.game-page .game-sound-toggle:focus-visible{outline:3px solid #51ba42;outline-offset:3px}
+.game-page .game-control-help{font-size:13px;color:#45617b;line-height:1.8;margin:12px 0 20px}
+.game-page .game-control-help kbd{font:inherit;font-weight:800;border:1px solid #b7c6d5;border-radius:5px;background:#fff;padding:1px 7px}
+.game-page .game-canvas-wrap canvas:focus-visible{outline:4px solid #7be366;outline-offset:-5px}
+@media(max-width:760px){.game-page .game-toolbar-actions{width:100%;justify-content:space-between}.game-page .touch-controls{gap:8px;flex-wrap:nowrap}.game-page .touch-controls button{min-width:0;flex:1;padding:12px 8px;font-size:12px;min-height:58px}.game-page .touch-controls button[data-control="jump"]{margin-left:0}.game-page .game-control-help{font-size:12px}}
+@media(max-width:390px){.game-page #game-status{font-size:9px}.game-page .touch-controls button{font-size:11px;gap:5px}}

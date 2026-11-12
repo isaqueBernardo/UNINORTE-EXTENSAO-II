@@ -19,10 +19,125 @@
   const progressLabel = document.getElementById('game-progress-label');
   const progressBar = document.getElementById('game-progress-bar');
   const toast = document.getElementById('game-toast');
+  const gameStatus = document.getElementById('game-status');
+  const soundButton = document.getElementById('game-sound-toggle');
+  const controlButtons = [...document.querySelectorAll('[data-control]')];
   const curtain = document.getElementById('transition-curtain');
   const CSRF = document.querySelector('meta[name="csrf-token"]')?.content || '';
   const W = canvas.width, H = canvas.height, FLOOR = 405, STEP = 860;
+  // Cada tecla ou ponteiro tem seu proprio estado: segurar esquerda e direita
+  // simultaneamente nao provoca teclas travadas ao soltar um deles.
   const keys = { left: false, right: false, jump: false };
+  const activeInputs = new Map();
+  let jumpConsumed = false;
+  function setInput(control, source, active) {
+    if (!['left','right','jump'].includes(control)) return;
+    const sources = activeInputs.get(control) || new Set();
+    if (active) sources.add(source);
+    else sources.delete(source);
+    activeInputs.set(control, sources);
+    keys[control] = sources.size > 0;
+    if (control === 'jump' && !keys.jump) jumpConsumed = false;
+    controlButtons.forEach(btn => {
+      if (btn.dataset.control === control) btn.classList.toggle('is-pressed', keys[control]);
+    });
+  }
+  function releaseInputs() {
+    activeInputs.clear();
+    keys.left = keys.right = keys.jump = false;
+    jumpConsumed = false;
+    controlButtons.forEach(btn => btn.classList.remove('is-pressed'));
+  }
+
+  // Trilha sonora ORIGINAL gerada no proprio navegador com Web Audio.
+  // Nao necessita de MP3, downloads ou bibliotecas de terceiros.
+  // Navegadores bloqueiam audio automatico: a primeira interacao com o jogo
+  // ou o botao 'Ativar musica' inicia a musica com permissao do navegador.
+  let audioContext = null;
+  let musicInterval = null;
+  let musicIndex = 0;
+  let musicEnabled = false;
+  let manuallyMuted = false;
+  const melody = [
+    523.25, 659.25, 783.99, 659.25, 587.33, 659.25, 698.46, 783.99,
+    880.00, 783.99, 659.25, 587.33, 523.25, 0, 392.00, 493.88,
+    523.25, 659.25, 783.99, 1046.50, 987.77, 783.99, 659.25, 587.33,
+    698.46, 659.25, 587.33, 523.25, 392.00, 0, 523.25, 0
+  ];
+  const bass = [130.81, 146.83, 174.61, 196.00];
+  function refreshSoundLabel() {
+    if (!soundButton) return;
+    soundButton.textContent = musicEnabled ? '♫ Música ligada' : '♫ Ativar música';
+    soundButton.setAttribute('aria-pressed', String(musicEnabled));
+    soundButton.title = musicEnabled ? 'Desligar trilha sonora' : 'Ligar trilha sonora';
+  }
+  function note(frequency, duration = 0.16, volume = 0.028, wave = 'square') {
+    if (!musicEnabled || !audioContext || !frequency || audioContext.state !== 'running') return;
+    try {
+      const now = audioContext.currentTime;
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      osc.type = wave;
+      osc.frequency.setValueAtTime(frequency, now);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(volume, now + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      osc.connect(gain); gain.connect(audioContext.destination);
+      osc.start(now); osc.stop(now + duration + 0.015);
+    } catch (error) { console.warn('Audio indisponivel:', error); }
+  }
+  function soundEffect(type) {
+    if (!musicEnabled) return;
+    if (type === 'jump') { note(698.46, 0.10, 0.021, 'triangle'); }
+    else if (type === 'coin') { note(1174.66, 0.11, 0.025); }
+    else if (type === 'portal') { note(523.25, 0.24, 0.036, 'sine'); note(783.99, 0.23, 0.022); }
+    else if (type === 'hit') { note(164.81, 0.14, 0.022, 'sawtooth'); }
+    else if (type === 'answer') { note(880, 0.16, 0.023, 'triangle'); }
+    else if (type === 'finish') { note(1046.5, 0.38, 0.036, 'triangle'); }
+  }
+  function musicBeat() {
+    if (!musicEnabled || !audioContext || document.hidden) return;
+    note(melody[musicIndex % melody.length], 0.17, 0.013, 'square');
+    if (musicIndex % 4 === 0) note(bass[Math.floor(musicIndex / 8) % bass.length], 0.32, 0.016, 'triangle');
+    musicIndex++;
+  }
+  async function enableMusic() {
+    const Context = window.AudioContext || window.webkitAudioContext;
+    if (!Context) { showToast('O navegador nao oferece suporte a audio.'); return; }
+    try {
+      if (!audioContext) audioContext = new Context();
+      musicEnabled = true;
+      manuallyMuted = false;
+      refreshSoundLabel();
+      await audioContext.resume();
+      if (musicEnabled && !musicInterval) {
+        musicBeat();
+        musicInterval = window.setInterval(musicBeat, 235);
+      }
+    } catch (error) {
+      musicEnabled = false;
+      refreshSoundLabel();
+      showToast('Nao foi possivel iniciar o som neste navegador.');
+      console.error('Rota Tech: erro de audio', error);
+    }
+  }
+  function disableMusic() {
+    musicEnabled = false;
+    manuallyMuted = true;
+    if (musicInterval) window.clearInterval(musicInterval);
+    musicInterval = null;
+    if (audioContext && audioContext.state === 'running') audioContext.suspend().catch(() => {});
+    refreshSoundLabel();
+  }
+  function onPlayerGesture() {
+    if (!musicEnabled && !manuallyMuted) enableMusic();
+    else if (musicEnabled && audioContext?.state === 'suspended') audioContext.resume().catch(() => {});
+  }
+  soundButton?.addEventListener('click', () => {
+    if (musicEnabled) disableMusic();
+    else enableMusic();
+  });
+  refreshSoundLabel();
   const coins = new Set();
   const stars = Array.from({length: 19}, (_, i) => ({ x: (i * 251 + 43) % W, y: 15 + ((i * 61) % 125), size: i % 3 === 0 ? 3 : 2 }));
   let state = window.ROTA_GAME || { answered: 0, total: 0, question: null, finished: false };
@@ -42,6 +157,7 @@
     player.vx = 0; player.vy = 0;
     player.grounded = true;
     player.invulnerability = 65;
+    soundEffect('hit');
     showToast('Ops! Respawn no checkpoint. Tente outro salto!');
   }
   function showToast(message) {
@@ -52,7 +168,10 @@
   function rnd(seed) { const val = Math.sin(seed * 12.9898) * 43758.5453; return val - Math.floor(val); }
   function screenX(x, parallax = 1) { return x - cameraX * parallax; }
   function rounded(x, y, w, h, radius, fill) {
-    ctx.beginPath(); ctx.roundRect(x, y, w, h, radius); ctx.fillStyle = fill; ctx.fill();
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') ctx.roundRect(x, y, w, h, radius);
+    else ctx.rect(x, y, w, h); // Compatibilidade com navegadores mais antigos.
+    ctx.fillStyle = fill; ctx.fill();
   }
 
   function update() {
@@ -64,7 +183,9 @@
     player.vx += (horizontal * moveSpeed - player.vx) * (horizontal ? .25 : .17);
     if (horizontal) player.face = horizontal;
     player.x = Math.max(15, player.x + player.vx);
-    if (keys.jump && player.grounded) {
+    if (keys.jump && player.grounded && !jumpConsumed) {
+      jumpConsumed = true;
+      soundEffect('jump');
       player.vy = -14.6; player.grounded = false;
       for (let i = 0; i < 5; i++) runParticles.push({x:player.x+18, y:FLOOR, vx:(Math.random()-.5)*4,vy:-Math.random()*3-1,life:22});
     }
@@ -154,7 +275,10 @@
         const x=origin+235+n*73, y= n%2?210:253, key=`${idx}:${n}`;
         if(!coins.has(key) && x > -30 && x<W+30){
           ctx.save();ctx.translate(x,y+Math.sin(frame*.055+n)*5);ctx.rotate(Math.PI/4);ctx.fillStyle='#ffdf65';ctx.shadowColor='#ffcf32';ctx.shadowBlur=13;ctx.fillRect(-9,-9,18,18);ctx.restore();
-          if(Math.abs(player.x+18+cameraX-x)<20 && Math.abs(player.y+20-y)<35){coins.add(key);showToast('Cristal de curiosidade coletado! ✦');}
+          const worldCoinX = idx * STEP + 235 + n * 73;
+          if (Math.abs(player.x + player.w / 2 - worldCoinX) < 23 && Math.abs(player.y + 20 - y) < 35) {
+            coins.add(key); soundEffect('coin'); showToast('Cristal de curiosidade coletado! ✦');
+          }
         }
       }
       // Obstaculos educativos.
@@ -215,14 +339,23 @@
     ctx.fillStyle='#d7f5eb';ctx.font='11px DM Sans, sans-serif';ctx.fillText('cristais',W-100,45);
   }
   function render() {
-    drawBackdrop(); drawWorld(); drawPlayer(); drawHUD();
-    update(); requestAnimationFrame(render);
+    try {
+      update();
+      drawBackdrop(); drawWorld(); drawPlayer(); drawHUD();
+      requestAnimationFrame(render);
+    } catch (error) {
+      console.error('Rota Tech: erro ao desenhar o jogo', error);
+      if (gameStatus) gameStatus.textContent = 'ERRO AO INICIAR O JOGO';
+      showToast('Falha no jogo. Pressione F12 e abra o Console para detalhes.');
+    }
   }
 
   function openQuestion() {
     if(paused || waiting || !state.question || state.finished)return;
+    if (!modal || !title || !scenario || !optionsHolder || !errorBox) return;
     paused=true;
-    keys.left=keys.right=keys.jump=false;
+    releaseInputs();
+    soundEffect('portal');
     title.textContent=state.question.title;
     scenario.textContent=state.question.scenario;
     document.getElementById('mission-count').textContent=`PORTAL ${String(state.answered+1).padStart(2,'0')} / ${state.total}`;
@@ -251,6 +384,7 @@
       const json=await response.json();
       if(!response.ok)throw new Error(json.message || Object.values(json.errors || {})[0]?.[0] || 'Nao foi possivel salvar sua escolha.');
       state=json;modal.hidden=true;document.body.style.overflow='';canvas.focus({preventScroll:true});
+      soundEffect('answer');
       progressLabel.textContent=`DESAFIO ${Math.min(state.answered+1,state.total)} / ${state.total}`;
       progressBar.style.width=`${state.total ? state.answered/state.total*100 : 0}%`;
       paused=false;
@@ -264,35 +398,76 @@
   }
   function finishGame(){
     paused=true;
+    soundEffect('finish');
     if(!curtain || !state.result_url){return;}
     curtain.hidden=false;
     window.setTimeout(()=>curtain.classList.add('is-opening'),1400);
     window.setTimeout(()=>{window.location.assign(state.result_url + '#suas-trilhas');},2650);
   }
-  function keyToControl(key){
-    if(['ArrowLeft','a','A'].includes(key))return 'left';
-    if(['ArrowRight','d','D'].includes(key))return 'right';
-    if(['ArrowUp',' ','w','W'].includes(key))return 'jump';
+  function keyToControl(key) {
+    if (['ArrowLeft', 'a', 'A'].includes(key)) return 'left';
+    if (['ArrowRight', 'd', 'D'].includes(key)) return 'right';
+    if (['ArrowUp', ' ', 'Spacebar', 'w', 'W'].includes(key)) return 'jump';
     return null;
   }
-  window.addEventListener('keydown',e=>{
-    if(e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|BUTTON|SELECT)$/.test(e.target.tagName))return;
-    const control=keyToControl(e.key);
-    if(!control)return;
-    e.preventDefault();keys[control]=true;
+  function isTyping(target) {
+    return target instanceof HTMLElement &&
+      (['INPUT','TEXTAREA','SELECT'].includes(target.tagName) || target.isContentEditable);
+  }
+  // Teclado funciona em toda a pagina do jogo, mesmo depois que o usuario
+  // clicou em um botao do painel. Controles desativados durante as perguntas.
+  window.addEventListener('keydown', event => {
+    const control = keyToControl(event.key);
+    if (!control || isTyping(event.target) || paused || waiting || state.finished) return;
+    if ((event.key === ' ' || event.key === 'Spacebar') && event.target instanceof HTMLElement && event.target.closest('button:not([data-control])')) return;
+    if (modal && !modal.hidden) return;
+    event.preventDefault();
+    setInput(control, 'keyboard:' + event.key, true);
+    if (!event.repeat) onPlayerGesture();
   });
-  window.addEventListener('keyup',e=>{const control=keyToControl(e.key);if(control)keys[control]=false;});
-  window.addEventListener('blur',()=>{keys.left=keys.right=keys.jump=false;});
-  document.querySelectorAll('[data-control]').forEach(btn=>{
-    const control=btn.dataset.control;
-    const press=e=>{e.preventDefault();keys[control]=true;};
-    const release=e=>{e.preventDefault();keys[control]=false;};
-    btn.addEventListener('pointerdown',press);
-    ['pointerup','pointercancel','pointerleave'].forEach(type=>btn.addEventListener(type,release));
+  window.addEventListener('keyup', event => {
+    const control = keyToControl(event.key);
+    if (!control) return;
+    setInput(control, 'keyboard:' + event.key, false);
   });
-  document.getElementById('accessible-question')?.addEventListener('click',openQuestion);
-  if(state.finished && state.result_url){window.location.replace(state.result_url);return;}
-  if(!state.question || !state.total)showToast('Este mundo aguarda desafios. Solicite ao professor que configure o jogo.');
-  else showToast('Corra ate o portal! Controles: ← → e Espaço para pular.');
+  window.addEventListener('blur', releaseInputs);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) releaseInputs(); });
+
+  // Botoes sempre visiveis, inclusive no Windows. Compatibilidade com mouse,
+  // touchscreen, caneta e controles acionados por acessibilidade.
+  controlButtons.forEach(btn => {
+    const control = btn.dataset.control;
+    const source = 'pointer:' + control;
+    btn.addEventListener('pointerdown', event => {
+      if (paused || waiting || state.finished) return;
+      event.preventDefault();
+      try { btn.setPointerCapture(event.pointerId); } catch (_) {}
+      setInput(control, source + ':' + event.pointerId, true);
+      onPlayerGesture();
+    });
+    const release = event => {
+      event.preventDefault();
+      setInput(control, source + ':' + event.pointerId, false);
+    };
+    btn.addEventListener('pointerup', release);
+    btn.addEventListener('pointercancel', release);
+    btn.addEventListener('lostpointercapture', release);
+    btn.addEventListener('contextmenu', event => event.preventDefault());
+    // Acionamento de botao via Enter / Espaco (acessibilidade).
+    btn.addEventListener('click', event => {
+      if (event.detail !== 0 || paused || waiting || state.finished) return;
+      const keyboardSource = 'button:' + control;
+      setInput(control, keyboardSource, true);
+      onPlayerGesture();
+      window.setTimeout(() => setInput(control, keyboardSource, false), 180);
+    });
+  });
+  canvas.addEventListener('pointerdown', () => { canvas.focus({ preventScroll: true }); onPlayerGesture(); });
+  document.getElementById('accessible-question')?.addEventListener('click', openQuestion);
+
+  if (state.finished && state.result_url) { window.location.replace(state.result_url); return; }
+  if (gameStatus) gameStatus.textContent = state.question && state.total ? 'PRONTO PARA JOGAR' : 'SEM MISSOES DISPONIVEIS';
+  if (!state.question || !state.total) showToast('Este mundo aguarda desafios. Solicite ao professor que configure o jogo.');
+  else showToast('Use A/D ou ← →, Espaço ou ↑ para pular. Mantenha os botoes pressionados para correr!');
   render();
 })();
